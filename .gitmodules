@@ -1,0 +1,4 @@
+[submodule "queryengine"]
+	path = queryengine
+	url = https://github.com/Hoverbear/scoop-queryengine
+	branch = master
