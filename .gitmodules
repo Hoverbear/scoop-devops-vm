@@ -2,3 +2,7 @@
 	path = queryengine
 	url = https://github.com/Hoverbear/scoop-queryengine
 	branch = master
+[submodule "visualizer"]
+	path = visualizer
+	url = https://github.com/Hoverbear/scoop-visualizer.git
+	branch = master
