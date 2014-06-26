@@ -5,17 +5,13 @@ VAGRANTFILE_API_VERSION = "2"
 
 # Query Engine Params
 QE_NAME = "queryengine"
-QEDB_NAME = "queryengine-db"
+QEDB_NAME = "queryenginedb"
 QE_PORT = 8080
 
 # Visualization Engine Params
 VIS_NAME = "visualizer"
-VISDB_NAME = "visualizer-db"
+VISDB_NAME = "visualizerdb"
 VIS_PORT = 8081
-
-# OAuth Params
-CONSUMER_KEY = 'visualizer'
-CONSUMER_SECRET = 'specialsecret'
 
 # Configuration
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
@@ -25,6 +21,11 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     config.vm.provider "virtualbox" do |v|
       v.name = "scoop"
     end
+
+    # Private network
+    config.vm.network "private_network", type: "dhcp"
+    # NFS share. Better supported.
+    config.vm.synced_folder ".", "/vagrant", type: "nfs"
 
     # Forward the SSH Agent
     config.ssh.forward_agent = true
@@ -50,18 +51,22 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         # Start Query Engine MongoDB
         d.run QEDB_NAME,
             image: "mongo",
-            args: "-d"
+            args: "-P"
         # Start Query Engine
         d.run QE_NAME,
             image: "queryengine",
-            args: "--link #{QEDB_NAME}:mongo -p #{QE_PORT}:8080 -d -v /vagrant/queryengine:/app"
+            args: "--link #{QEDB_NAME}:#{QEDB_NAME} -p #{QE_PORT}:8080 -v /vagrant/queryengine:/app"
         # Start Visualizer MongoDB
         d.run VISDB_NAME,
             image: "mongo",
-            args: "--name #{VISDB_NAME} -d"
+            args: "-P"
         # Start Visualizer
         d.run VIS_NAME,
             image: "visualizer",
-            args: "--link #{VISDB_NAME}:mongo --link #{QE_NAME}:queryengine -p #{VIS_PORT}:8081 -d -v /vagrant/visualizer:/app -e 'CONSUMER_KEY=#{CONSUMER_KEY}' -e 'CONSUMER_SECRET=#{CONSUMER_SECRET}'"
+            args: "--link #{VISDB_NAME}:#{VISDB_NAME} --link #{QE_NAME}:queryengine -p #{VIS_PORT}:8081 -v /vagrant/visualizer:/app"
     end
+
+    # If you change any of the variables you need to edit this script.
+    config.vm.provision "shell", path: "db-data/setup.sh"
+
 end
