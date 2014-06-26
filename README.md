@@ -3,8 +3,8 @@ This repo is intended to provide a quick, easy virtual environment to develop th
 ### Getting Started:
 
 ```bash
-git clone https://github.com/Hoverbear/vm.git --recursive
-cd vm
+git clone https://github.com/Hoverbear/scoop-devops-vm.git --recursive
+cd scoop-devops-vm
 vagrant up # First start will take awhile.
 ```
 
