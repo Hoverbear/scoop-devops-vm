@@ -1,0 +1,189 @@
+#!/bin/bash
+
+#############
+# Variables #
+#############
+docker images | grep visualizer > /dev/null
+HAS_VISUALIZER=$?
+
+docker images | grep queryengine > /dev/null
+HAS_QUERYENGINE=$?
+
+docker images | grep mongo > /dev/null
+HAS_MONGO=$?
+
+docker ps -a | grep visualizerdb > /dev/null
+VISUALIZERDB_EXISTS=$?
+
+docker ps -a | grep queryenginedb > /dev/null
+QUERYENGINEDB_EXISTS=$?
+
+docker ps -a | grep queryengine > /dev/null
+QUERYENGINE_EXISTS=$?
+
+docker ps -a | grep visualizer > /dev/null
+VISUALIZER_EXISTS=$?
+
+#############
+# Functions #
+#############
+# Pull image.
+#  $1: The image to pull.
+function pull () {
+  echo
+  echo "Pulling $1"
+  docker pull $1 > /dev/null
+  echo "Finished with status: $?"
+  echo
+}
+# Build image
+#  $1: The tag of the image to build.
+#  $2: Location
+function build () {
+  echo
+  echo "Building $1"
+  docker build -t $1 $2 > /dev/null
+  echo "Finished with status: $?"
+  echo
+}
+# Run Container
+#  $1: The name of the container.
+#  $2: The image to run.
+#  $*: Other arguments to pass.
+function run () {
+  echo
+  NAME=$1
+  shift
+  IMAGE=$1
+  shift
+  echo "Running $NAME as $IMAGE"
+  docker run $* --name=$NAME $IMAGE
+  echo "Finished with status: $?"
+  echo
+}
+# Restart Container
+#  $1: The container to restart.
+function restart () {
+  echo
+  echo "Restarting $1"
+  docker restart $1
+  echo "Finished with status: $?"
+  echo
+}
+# Stop Container
+#  $1: The container to stop.
+function stop () {
+  echo
+  echo "Stopping $1"
+  docker stop $1
+  echo "Finished with status: $?"
+  echo
+}
+# Destroy Container
+#  $1: The container to remove.
+function destroy () {
+  echo
+  echo "Destroying container $1"
+  docker rm -f $1
+  echo "Finished with status: $?"
+  echo
+}
+# Destruct Image
+#  $1: The image to remove.
+function destruct () {
+  echo
+  echo "Destructing image $1"
+  docker rmi $1
+  echo "Finished with status: $?"
+  echo
+}
+# Populate Mongo Database
+#  $1: The container to populate.
+#  $2: The database dump location.
+function populate () {
+  echo
+  echo "Populating database of $1 with $2"
+  PORT=$(docker port $1 27017 | awk '{split($0,a,":"); print a[2]}')
+  mongorestore --port $PORT $2
+  echo "Finished with status: $?"
+  echo
+}
+
+# `./scoop up`
+# Creates the containers if needed, then brings them up.
+# Offers to rebuild them if they're already created.
+if [[ "$1" == "up" ]]; then
+  echo "Bringing up the cluster..."
+  if [[ $HAS_MONGO == 1 ]]; then
+    pull "mongo"
+  else
+    echo "Mongo Image already pulled. Skipping..."
+  fi
+  if [[ $HAS_QUERYENGINE == 1 ]]; then
+    build "queryengine" ~/git/scoop-queryengine/
+  else
+    echo "queryengine already built. Skipping..."
+  fi
+  if [[ $HAS_VISUALIZER == 1 ]]; then
+    build "visualizer" ~/git/scoop-visualizer/
+  else
+      echo "visualizer already built. Skipping..."
+  fi
+  if [[ $QUERYENGINEDB_EXISTS == 1 ]]; then
+    run "queryenginedb" "mongo" "-P -d"
+    sleep 1 # Time to start.
+    populate queryenginedb ~/git/scoop-devops-vm/db-data/queryengine
+  else
+    echo "queryenginedb already running. Skipping..."
+  fi
+  if [[ $VISUALIZERDB_EXISTS == 1 ]]; then
+    run "visualizerdb" "mongo" "-P -d"
+  else
+    echo "visualizerdb already running. Skipping..."
+  fi
+  if [[ $QUERYENGINE_EXISTS == 1 ]]; then
+    run "queryengine" "queryengine" "-d --link queryenginedb:queryenginedb -p 8080:8080 -v /home/hoverbear/git/scoop-queryengine:/app"
+  else
+    echo "queryengine already running. Skipping..."
+  fi
+  if [[ $VISUALIZER_EXISTS == 1 ]]; then
+    run "visualizer" "visualizer" "-d --link visualizerdb:visualizerdb --link queryengine:queryengine -p 8081:8081 -v /home/hoverbear/git/scoop-visualizer:/app"
+  else
+    echo "visualizer already running. Skipping..."
+  fi
+  echo "Cluster up."
+# `./scoop down`
+# Shuts down the containers.
+elif [[ "$1" == "down" ]]; then
+  echo "Stopping cluster..."
+  stop visualizer
+  stop queryengine
+  stop visualizerdb
+  stop queryenginedb
+  echo "Cluster stopped."
+# `./scoop restart`
+# Restarts the containers.
+elif [[ "$1" == "restart" ]]; then
+  echo "Restarting cluster..."
+  restart queryenginedb
+  restart visualizerdb
+  restart queryengine
+  restart visualizer
+  echo "Cluster restarted."
+# `./scoop destroy`
+# Forcibly removes and destroys the containers.
+elif [[ "$1" == "destroy" ]]; then
+  echo "Destroying cluster..."
+  destroy visualizer
+  destroy queryengine
+  destroy visualizerdb
+  destroy queryenginedb
+  echo "Cluster destroyed."
+elif [[ "$1" == "destruct" ]]; then
+  echo "Destroying cluster..."
+  destruct visualizer
+  destruct queryengine
+  destruct visualizerdb
+  destruct queryenginedb
+  echo
+fi
